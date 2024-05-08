@@ -51,7 +51,7 @@ const userSchema=new Schema(
 userSchema.pre("save", async function(next){
     if(!this.isModified("password")) return next();//here syntax is like this "password" (i.e, password within strings)
 
-    this.password=bcrypt.hash(this.password,10)
+    this.password=await bcrypt.hash(this.password,10)
     next();
 }) //here arrow function is not used coz arrow function has no idea about this pointer which is very necessary in this case...
 
