@@ -55,7 +55,7 @@ userSchema.pre("save", async function(next){
     next();
 }) //here arrow function is not used coz arrow function has no idea about this pointer which is very necessary in this case...
 
-userSchema.methods.isPasswordCorrect=async function(password){
+userSchema.methods.isPasswordCorrect = async function(password){
     return await bcrypt.compare(password,this.password)
 }
 
