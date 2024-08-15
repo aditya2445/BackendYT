@@ -4,21 +4,8 @@ import {User} from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import jwt from "jsonwebtoken"
-
-
-const generateAccessAndRefreshTokens = async(userId)=>{
-    try {
-        const user=await User.findById(userId);
-        const accessToken=user.generateAccessToken()
-        const refreshToken=user.generateRefreshToken()
-
-        user.refreshToken=refreshToken;
-        await user.save({validateBeforeSave:false})
-        return {accessToken,refreshToken}
-    } catch (error) {
-        throw new ApiError(500,"something went wrong while generating refresh and access token");
-    }
-}
+import { generateAccessAndRefreshTokens } from "../models/user.model.js"
+import mongoose from "mongoose"
 
 const registerUser = asyncHandler( async(req,res) => {
     //get user details from frontend
@@ -55,7 +42,7 @@ const registerUser = asyncHandler( async(req,res) => {
         $or:[ {username} , {email} ]
     })
     if(existingUser){
-        throw new ApiError(409,"user with emIL or username already exist");
+        throw new ApiError(409,"user with email or username already exist");
     }
 
     //********************************************** step4
@@ -74,7 +61,7 @@ const registerUser = asyncHandler( async(req,res) => {
     const avatar=await uploadOnCloudinary(avatarLocalPath)
     const coverImage=await uploadOnCloudinary(coverImageLocalPath)
 
-    if(!avatar) throw new ApiError(404,"Avatar file is required");
+    if(!avatar) throw new ApiError(404,"Cloudinary upload error");
 
     //*********************************************** step6
     const user = await User.create({
@@ -112,6 +99,7 @@ const loginUser=asyncHandler( async(req,res) => {
     //send cookie
     //send the response that user has successfuly logged in
     const {email,username,password}=req.body
+    // console.log(req.body);
 
     if(!(username || email)){
         throw new ApiError(400,"username or password is required")
@@ -119,7 +107,7 @@ const loginUser=asyncHandler( async(req,res) => {
     // User.findOne({email}) method is for finding a user via email
     // User.findOne({username}) method is for finding a user via username
     console.log(email);
-    const user=User.findOne({
+    const user=await User.findOne({
         $or: [{username},{email}]
     })
     console.log(user);
@@ -133,7 +121,9 @@ const loginUser=asyncHandler( async(req,res) => {
         throw new ApiError(401,"invalid user credentials");
     }
     const {accessToken,refreshToken} = await generateAccessAndRefreshTokens(user._id)
-    const loggedInUser = User.findById(user._id).select("-password -refreshToken");
+    console.log("AccessToken : " , accessToken);
+    console.log("Refresh Token : " , refreshToken);
+    const loggedInUser =await User.findById(user._id).select("-password -refreshToken");
     const options={
         httpOnly : true,
         secure : true
@@ -163,16 +153,15 @@ const logoutUser = asyncHandler( async(req,res)=>{
         {
             new:true
         }
-    )
+    );
 
     const options={
         httpOnly : true,
         secure : true
     }
-
+    res.clearCookie("accessToken",options)
+    res.clearCookie("refreshToken",options)
     return res.status(200)
-            .clearCookie("accessToken",accessToken,options)
-            .clearCookie("refreshToken",refreshToken,options)
             .json(
                 new ApiResponse(
                     200,
@@ -194,7 +183,7 @@ const refreshAccessToken=asyncHandler(async(req,res)=>{
             throw new ApiError(401,"invalid refresh token");
         }
     
-        if(incomingRefreshToken!==user?.refreshToken){
+        if(incomingRefreshToken!==user.refreshToken){
             throw new ApiError(401,"Refresh token is expired or used");
         }
     
@@ -204,10 +193,12 @@ const refreshAccessToken=asyncHandler(async(req,res)=>{
         }
     
         const {accessToken,newRefreshToken}=await generateAccessAndRefreshTokens(user._id);
+        user.refreshToken = newRefreshToken;
+        await user.save();
         return res.status(200).cookie("accesstoken",accessToken,options).cookie("refreshToken",newRefreshToken,options).json(
             new ApiResponse(
                 200,
-                {accessToken,refreshToken:newRefreshToken},
+                {accessToken,newRefreshToken},
                 "Access token refreshed"
             )
         )
@@ -324,7 +315,7 @@ const updateUserCoverImage=asyncHandler(async(req,res)=>{
 
 const getUserChannelProfile=asyncHandler(async(req,res)=>{
     const {username}=req.params
-    if(username?.trim()){
+    if(!username?.trim()){
         throw new ApiError(400,"username is missing")
     }
 
@@ -398,7 +389,7 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
         {
             $match:{
             // _id:req.user._id //here id is in string format
-                _id:new mongoose.Types.ObjectId(req.iser._id)
+                _id:new mongoose.Types.ObjectId(req.user._id)
             }
         },
         {
@@ -410,7 +401,7 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
                 pipeline:[
                     {
                         $lookup:{
-                            from:"users",
+                            from:"User",
                             localField:"owner",
                             foreignField:"_id",
                             as:"owner",

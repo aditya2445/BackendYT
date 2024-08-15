@@ -50,17 +50,32 @@ const userSchema=new Schema(
 
 userSchema.pre("save", async function(next){
     if(!this.isModified("password")) return next();//here syntax is like this "password" (i.e, password within strings)
+        
+        this.password=await bcrypt.hash(this.password,10)
+        next();
+    }) //here arrow function is not used coz arrow function has no idea about this pointer which is very necessary in this case...
+    
+    userSchema.methods.isPasswordCorrect =async function(pass){
+        return await bcrypt.compare(pass,this.password);
+    }
+    export const generateAccessAndRefreshTokens = async(userId)=>{
+        try {
+            const user=await User.findById(userId);
+            if(!user){
+                console.log("User Not Found");
+            }
+            const accessToken=user.generateAccessToken()
+            const refreshToken=user.generateRefreshToken()
+            user.refreshToken=refreshToken;
 
-    this.password=await bcrypt.hash(this.password,10)
-    next();
-}) //here arrow function is not used coz arrow function has no idea about this pointer which is very necessary in this case...
-
-userSchema.methods.isPasswordCorrect = async function(password){
-    return await bcrypt.compare(password,this.password)
-}
-
+            await user.save({validateBeforeSave:false})
+            return {accessToken,refreshToken}
+        } catch (error) {
+            throw new ApiError(500,"something went wrong while generating refresh and access token");
+        }
+    }
 userSchema.methods.generateAccessToken=function(){
-    jwt.sign(
+    return jwt.sign(
         {
             _id:this._id,
             email:this.email,
@@ -73,7 +88,7 @@ userSchema.methods.generateAccessToken=function(){
     )
 }
 userSchema.methods.generateRefreshToken=function(){
-    jwt.sign(
+    return jwt.sign(
         {
             _id:this._id,
             email:this.email,
