@@ -129,7 +129,7 @@ const updateTweet = asyncHandler(async (req, res) => {
             $set:{
                 content,
             }
-        }
+        },
         {new:true}
     )
     if (!newTweet) {

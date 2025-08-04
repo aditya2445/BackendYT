@@ -36,7 +36,6 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
     if(channelId.channel.owner !== req.user._id){
         throw new ApiError(404,"you cannot see the subscribers list coz you are not the owner");
     }
-
     const subscribers = await Subscription.aggregate([
         {
             $match:{
@@ -108,12 +107,6 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 // controller to return channel list to which user has subscribed
 const getSubscribedChannels = asyncHandler(async (req, res) => {
     const { subscriberId } = req.params;
-
-    // Validate the subscriberId
-    // if (!isValidObjectId(subscriberId)) {
-    //     throw new ApiError(400, "Invalid ID");
-    // }
-
     const subscribedChannels = await Subscription.aggregate([
         {
             $match: {
